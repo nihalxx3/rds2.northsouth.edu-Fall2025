@@ -1,7 +1,7 @@
 import csv
 from pathlib import Path
 
-INPUT_CSV = "updated.csv"
+INPUT_CSV = "source/updated.csv"
 SAMPLE_HTML = "sample.html"
 OUTPUT_HTML = "index.html"
 

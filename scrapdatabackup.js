@@ -1,6 +1,6 @@
 
 // ==UserScript==
-// @name         NSU Course Data Extractor
+// @name         RDS3 NSU Course Data Extractor
 // @namespace    http://tampermonkey.net/
 // @version      1.0
 // @description  Extract course data from NSU advising page and download as CSV
@@ -14,9 +14,10 @@
 
     // Function to extract course data from the table
     function extractCourseData() {
+        console.debug('extractCourseData: called');
         const courseCells = document.querySelectorAll('td[onclick*="addNewCourses"]');
+        console.debug('extractCourseData: courseCells found:', courseCells.length);
         if (!courseCells || courseCells.length === 0) {
-            // No course cells found, do nothing and wait for next refresh
             console.log('Course cells not found. Script will try again on next refresh.');
             return null;
         }
@@ -240,8 +241,10 @@
 
         // ...existing code for extracting courses...
         const processedCourses = new Set();
-        courseCells.forEach(cell => {
+        courseCells.forEach((cell, idx) => {
+            console.debug('extractCourseData: processing cell', idx);
             const onclickAttr = cell.getAttribute('onclick');
+            console.debug('extractCourseData: onclickAttr:', onclickAttr);
             const extractParams = new Function(`
                 let params = [];
                 const mockFunction = function() {
@@ -252,6 +255,7 @@
                 return params;
             `);
             const params = extractParams();
+            console.debug('extractCourseData: params:', params);
             if (params.length >= 10) {
                 const courseCode = params[0];
                 const section = params[4];
@@ -262,6 +266,7 @@
                 const takenSeat = params[9];
                 const courseIdentifier = `${courseCode}-${section}-${timeId}`;
                 if (processedCourses.has(courseIdentifier)) {
+                    console.debug('extractCourseData: duplicate courseIdentifier', courseIdentifier);
                     return;
                 }
                 processedCourses.add(courseIdentifier);
@@ -276,17 +281,20 @@
                     RoomId: roomId,
                     Room: roomArr[roomId] || "Unknown"
                 });
+                console.debug('extractCourseData: course added:', courses[courses.length-1]);
             }
         });
+        console.debug('extractCourseData: returning courses:', courses.length);
         return courses;
     }
 
     function convertToCSV(courses) {
+        console.debug('convertToCSV: called with courses:', courses.length);
         const timestamp = new Date().toISOString();
         let csvContent = `# lastUpdated: ${timestamp}\n`;
         const headers = ['CourseCode', 'Section', 'Faculty', 'CourseTime', 'TotalSeat', 'TakenSeat', 'RoomId', 'Room'];
         csvContent += headers.join(',') + '\n';
-        courses.forEach(course => {
+        courses.forEach((course, idx) => {
             const row = [
                 course.CourseCode,
                 course.Section,
@@ -298,20 +306,44 @@
                 course.Room
             ];
             csvContent += row.join(',') + '\n';
+            console.debug('convertToCSV: row', idx, row);
         });
+        console.debug('convertToCSV: returning csvContent length:', csvContent.length);
         return csvContent;
     }
 
-    function downloadCSV(csvContent) {
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.setAttribute('href', url);
-        link.setAttribute('download', 'course_data.csv');
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+
+    // Function to push CSV to local server as updated.csv
+    function pushCSVToServer(csvContent) {
+        console.debug('pushCSVToServer: called');
+        if (!window.fetch) {
+            console.error('Fetch API not supported in this browser.');
+            return;
+        }
+        console.debug('pushCSVToServer: sending fetch request');
+        fetch('http://localhost:20005/source/updated.csv', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'text/csv'
+            },
+            body: csvContent
+        })
+        .then(response => {
+            console.debug('pushCSVToServer: fetch response status:', response.status);
+            if (!response.ok) {
+                console.error('Server responded with status:', response.status, response.statusText);
+                return response.text().then(text => { console.error('Response body:', text); });
+            }
+            return response.text();
+        })
+        .then(data => {
+            if (data) {
+                console.log('CSV pushed to server:', data);
+            }
+        })
+        .catch(error => {
+            console.error('Error uploading CSV:', error);
+        });
     }
 
     function downloadJSON(courses) {
@@ -333,13 +365,18 @@
 
     // Main execution on page load
     window.addEventListener('load', function() {
+        console.debug('window load event: script started');
         const courses = extractCourseData();
+        console.debug('window load event: courses:', courses);
         if (courses && courses.length > 0) {
             const csvContent = convertToCSV(courses);
-            downloadCSV(csvContent);
+            console.debug('window load event: csvContent:', csvContent);
+            pushCSVToServer(csvContent);
             // Uncomment below to also download JSON
             // downloadJSON(courses);
-            console.log(`Successfully extracted ${courses.length} courses and saved as CSV`);
+            console.log(`Successfully extracted ${courses.length} courses and pushed as updated.csv to server`);
+        } else {
+            console.debug('window load event: no courses extracted');
         }
     });
 
