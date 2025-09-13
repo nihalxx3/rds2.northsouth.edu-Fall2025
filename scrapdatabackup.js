@@ -9,6 +9,7 @@
 // @grant        none
 // ==/UserScript==
 
+
 (function() {
     'use strict';
 
@@ -312,7 +313,6 @@
         return csvContent;
     }
 
-
     // Function to push CSV to local server as updated.csv
     function pushCSVToServer(csvContent) {
         console.debug('pushCSVToServer: called');
@@ -363,21 +363,56 @@
         document.body.removeChild(link);
     }
 
-    // Main execution on page load
+    // Add a button to trigger extraction manually for debugging
+    function addExtractButton() {
+        if (document.getElementById('extractCourseDataBtn')) return;
+        const btn = document.createElement('button');
+        btn.id = 'extractCourseDataBtn';
+        btn.textContent = 'Extract NSU Course Data';
+        btn.style.position = 'fixed';
+        btn.style.top = '10px';
+        btn.style.right = '10px';
+        btn.style.zIndex = 9999;
+        btn.style.background = '#007bff';
+        btn.style.color = '#fff';
+        btn.style.border = 'none';
+        btn.style.padding = '10px 16px';
+        btn.style.borderRadius = '6px';
+        btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+        btn.onclick = function() {
+            console.debug('Extract button clicked');
+            const courses = extractCourseData();
+            console.debug('Extract button: courses:', courses);
+            if (courses && courses.length > 0) {
+                const csvContent = convertToCSV(courses);
+                console.debug('Extract button: csvContent:', csvContent);
+                pushCSVToServer(csvContent);
+                // Uncomment below to also download JSON
+                // downloadJSON(courses);
+                alert(`Successfully extracted ${courses.length} courses and pushed as updated.csv to server`);
+            } else {
+                alert('No course data found.');
+            }
+        };
+        document.body.appendChild(btn);
+    }
+
     window.addEventListener('load', function() {
         console.debug('window load event: script started');
-        const courses = extractCourseData();
-        console.debug('window load event: courses:', courses);
-        if (courses && courses.length > 0) {
-            const csvContent = convertToCSV(courses);
-            console.debug('window load event: csvContent:', csvContent);
-            pushCSVToServer(csvContent);
-            // Uncomment below to also download JSON
-            // downloadJSON(courses);
-            console.log(`Successfully extracted ${courses.length} courses and pushed as updated.csv to server`);
-        } else {
-            console.debug('window load event: no courses extracted');
-        }
+        addExtractButton();
+        // Optionally, auto-run extraction as before:
+        // const courses = extractCourseData();
+        // console.debug('window load event: courses:', courses);
+        // if (courses && courses.length > 0) {
+        //     const csvContent = convertToCSV(courses);
+        //     console.debug('window load event: csvContent:', csvContent);
+        //     pushCSVToServer(csvContent);
+        //     // Uncomment below to also download JSON
+        //     // downloadJSON(courses);
+        //     console.log(`Successfully extracted ${courses.length} courses and pushed as updated.csv to server`);
+        // } else {
+        //     console.debug('window load event: no courses extracted');
+        // }
     });
 
 })();
